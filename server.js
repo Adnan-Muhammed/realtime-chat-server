@@ -3,9 +3,10 @@
 // Sets up Express, MongoDB, Socket.io, and mounts all API routes
 // ═══════════════════════════════════════════════════════════════
 
+import 'dotenv/config'; // MUST be the first import to load .env variables
+
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { createServer } from 'http';
 
 // ─── Internal Imports ────────────────────────────────────────
@@ -17,7 +18,6 @@ import messageRoutes from './routes/messageRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 
 // ─── Configuration ───────────────────────────────────────────
-dotenv.config();
 connectDB();
 
 // ─── App Setup ───────────────────────────────────────────────

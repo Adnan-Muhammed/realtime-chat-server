@@ -5,11 +5,34 @@
 //   getUsers          → Fetch all users for the Discover page
 //   getFriends        → Fetch current user's accepted friends
 //   handleConnection  → Send/accept/reject/withdraw friend requests
+//   saveFcmToken      → Store the browser FCM token for push notifications
 // ═══════════════════════════════════════════════════════════════
 
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
-import { getIO } from '../socket.js';
+import { getIO, isUserOnline } from '../socket.js';
+import admin from '../config/firebaseAdmin.js';
+
+// ─── Save FCM Token ──────────────────────────────────────────
+// Called by the frontend after requesting notification permission.
+// Stores the browser's FCM registration token on the user document
+// so the backend can send push notifications when they are offline.
+export const saveFcmToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { fcmToken } = req.body;
+
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, message: 'fcmToken is required' });
+    }
+
+    await User.findByIdAndUpdate(userId, { fcmToken });
+    res.status(200).json({ success: true, message: 'FCM token saved' });
+  } catch (error) {
+    console.error('Error saving FCM token:', error);
+    res.status(500).json({ success: false, message: 'Failed to save FCM token' });
+  }
+};
 
 // ─── Get All Users (Discover Page) ──────────────────────────
 // Returns all users except the current user, with their
@@ -118,6 +141,38 @@ export const handleConnection = async (req, res) => {
         }
         if (!targetUser.friendRequestsReceived.includes(currentUserId)) {
           targetUser.friendRequestsReceived.push(currentUserId);
+        }
+
+        // ── Push Notification (offline users only) ──────────────
+        // Only send a push if the target user has NO active socket.
+        // We fetch the fcmToken only when it's actually needed.
+        if (!isUserOnline(targetUserId)) {
+          console.log(`[Push Notification] User ${targetUserId} is offline. Fetching FCM token...`);
+          const tokenHolder = await User.findById(targetUserId).select('fcmToken');
+          
+          if (tokenHolder?.fcmToken) {
+            console.log(`[Push Notification] FCM token found for User ${targetUserId}. Sending push...`);
+            const message = {
+              token: tokenHolder.fcmToken,
+              notification: {
+                title: '👋 New Connect Request',
+                body: `${currentUser.name} sent you a connect request!`,
+              },
+              webpush: {
+                // Ensures the notification shows even when the tab is closed
+                fcm_options: { link: '/' },
+              },
+            };
+            
+            // Fire-and-forget — don't block the HTTP response
+            admin.messaging().send(message)
+              .then((response) => console.log('[Push Notification] Successfully sent:', response))
+              .catch((err) => console.error('[Push Notification] Send error:', err.message));
+          } else {
+             console.log(`[Push Notification] No FCM token found for User ${targetUserId}. Push skipped.`);
+          }
+        } else {
+           console.log(`[Push Notification] User ${targetUserId} is online. Push skipped (they will get socket event).`);
         }
         break;
 

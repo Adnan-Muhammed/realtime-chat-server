@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema({
   friends:                [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],  // Accepted friends
   friendRequestsSent:     [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],  // Outgoing pending requests
   friendRequestsReceived: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],  // Incoming pending requests
+
+  // ─── Push Notification Token ─────────────────────────────────
+  // Stored by the frontend after the user grants notification permission.
+  // Used by firebase-admin to send FCM push notifications when the user is offline.
+  fcmToken: { type: String, default: null },
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);
